@@ -11,7 +11,6 @@ import pl.skidam.automodpack_core.GlobalVariables;
 import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.modpack.ModpackContent;
 import pl.skidam.automodpack_core.paths.ModpackPaths;
-import pl.skidam.automodpack_core.paths.ServerModpackPaths;
 import pl.skidam.automodpack_core.protocol.netty.message.EchoMessage;
 import pl.skidam.automodpack_core.protocol.netty.message.FileRequestMessage;
 import pl.skidam.automodpack_core.protocol.netty.message.ProtocolMessage;

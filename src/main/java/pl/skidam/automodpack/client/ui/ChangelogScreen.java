@@ -17,7 +17,6 @@ import pl.skidam.automodpack_core.config.Jsons;
 import pl.skidam.automodpack_core.utils.ModpackContentTools;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 

@@ -17,7 +17,6 @@ import pl.skidam.automodpack_loader_core.utils.UpdateType;
 
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 

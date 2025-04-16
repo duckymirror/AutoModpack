@@ -1,7 +1,6 @@
 package pl.skidam.automodpack_core.utils;
 
 import pl.skidam.automodpack_core.config.Jsons;
-import pl.skidam.automodpack_core.paths.ModpackPaths;
 
 import java.io.File;
 import java.io.FileOutputStream;

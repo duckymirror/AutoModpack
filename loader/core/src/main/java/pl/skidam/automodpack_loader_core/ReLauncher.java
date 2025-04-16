@@ -8,7 +8,6 @@ import pl.skidam.automodpack_loader_core.screen.ScreenManager;
 import pl.skidam.automodpack_loader_core.utils.UpdateType;
 
 import java.awt.*;
-import java.nio.file.Path;
 import java.util.concurrent.Semaphore;
 
 import static pl.skidam.automodpack_core.GlobalVariables.*;

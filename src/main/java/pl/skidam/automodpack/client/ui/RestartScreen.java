@@ -4,7 +4,6 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.util.Formatting;
 import pl.skidam.automodpack.client.audio.AudioManager;
 
-import java.nio.file.Path;
 
 import pl.skidam.automodpack.client.ui.versioned.VersionedMatrices;
 import pl.skidam.automodpack.client.ui.versioned.VersionedScreen;

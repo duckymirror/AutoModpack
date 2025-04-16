@@ -9,7 +9,6 @@ import pl.skidam.automodpack_core.paths.ServerPaths;
 import pl.skidam.automodpack_core.protocol.netty.NettyServer;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import static pl.skidam.automodpack_core.GlobalVariables.*;

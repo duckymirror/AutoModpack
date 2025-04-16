@@ -1,6 +1,8 @@
 package pl.skidam.automodpack_core.modpack;
 
 import org.junit.jupiter.api.Test;
+import pl.skidam.automodpack_core.paths.ModDefaults;
+import pl.skidam.automodpack_core.paths.ServerModpackPaths;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -48,7 +50,10 @@ class ModpackTest {
                 "ModpackContentItems(file=/mods/server-mod-1.20.jar, size=1, type=other, editable=false, sha1=86f7e437faa5a7fce15d1ddcb9eaeaea377667b8, murmur=null)"
         );
 
-        ModpackContent content = new ModpackContent("TestPack", null, testFilesDir, new ArrayList<>(), new ArrayList<>(editable), new Modpack().CREATION_EXECUTOR);
+        ModpackContent content = new ModpackContent("TestPack", null,
+                new ServerModpackPaths(testFilesDir), new ArrayList<>(), new ArrayList<>(editable),
+                new Modpack(ModDefaults.HOST_MODPACK_ID).CREATION_EXECUTOR
+        );
         content.create();
 
         boolean correct = true;

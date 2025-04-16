@@ -144,7 +144,7 @@ public class SelfUpdater {
     }
 
     public static void installModVersion(ModrinthAPI automodpack) {
-        Path automodpackUpdateJar = automodpackDir.resolve(automodpack.fileName());
+        Path automodpackUpdateJar = clientPaths.getDataDir().resolve(automodpack.fileName());
         Path newAutomodpackJar;
 
         try {

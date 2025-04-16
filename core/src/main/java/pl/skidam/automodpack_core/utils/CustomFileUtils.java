@@ -1,6 +1,7 @@
 package pl.skidam.automodpack_core.utils;
 
 import pl.skidam.automodpack_core.config.Jsons;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -129,22 +130,32 @@ public class CustomFileUtils {
         return true;
     }
 
-    // Formats path to be relative to the modpack directory - modpack-content format
-    // arguments can not be null
+    /**
+     * If {@code modpackPath} is not {@code null} and {@code modpackFile} starts with {@code modpackPath}, formats
+     * {@code modpackFile} relative to {@code modpackPath}. Otherwise, if {@code modpackFile} starts with
+     * {@code System.getProperty("user.dir")}, {@code modpackFile} is formated relative to that directory. In the
+     * remaining cases, an error is logged and the original {@code modpackFile} is returned.
+     *
+     * @param modpackFile the path to be formatted, must not be {@code null}
+     * @param modpackPath the modpack path to try to format relative to, can be {@code null}
+     * @return the formatted path, in the modpack content format
+     */
     public static String formatPath(final Path modpackFile, final Path modpackPath) {
-        if (modpackPath == null || modpackFile == null) {
-            throw new IllegalArgumentException("Arguments are null - modpackPath: " + modpackPath + ", modpackFile: " + modpackFile);
+        if (modpackFile == null) {
+            throw new IllegalArgumentException("Argument is null - modpackPath: " + modpackPath + ", modpackFile: " + modpackFile);
         }
 
         final String modpackFileStr = modpackFile.normalize().toString();
         final String modpackFileStrAbs = modpackFile.toAbsolutePath().normalize().toString();
-        final String modpackPathStrAbs = modpackPath.toAbsolutePath().normalize().toString();
+        final String modpackPathStrAbs = modpackPath != null
+                ? modpackPath.toAbsolutePath().normalize().toString()
+                : null;
         final String cwdStrAbs = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize().toString();
 
         String formattedFile = modpackFileStr;
 
         // Checks if in file parents paths (absolute path) there is modpack directory (absolute path)
-        if (modpackFileStrAbs.contains(modpackPathStrAbs)) {
+        if (modpackPathStrAbs != null && modpackFileStrAbs.contains(modpackPathStrAbs)) {
             formattedFile = modpackFileStrAbs.replace(modpackPathStrAbs, "");
         } else if (modpackFileStrAbs.contains(cwdStrAbs)) {
             formattedFile = modpackFileStrAbs.replace(cwdStrAbs, "");
@@ -152,7 +163,7 @@ public class CustomFileUtils {
             LOGGER.error("File: {} ({}) is not in modpack directory: {} ({}) or current working directory: {}", modpackFileStr, modpackFileStrAbs, modpackPath, modpackPathStrAbs, cwdStrAbs);
         }
 
-        formattedFile =  formattedFile.replace(File.separator, "/");
+        formattedFile = formattedFile.replace(File.separator, "/");
 
         // Its probably useless, but just in case
         if (!formattedFile.startsWith("/")) {
@@ -185,7 +196,8 @@ public class CustomFileUtils {
             return false;
         }
 
-        String modpackFile = CustomFileUtils.formatPath(file, Objects.requireNonNullElse(selectedModpackDir, hostContentModpackDir));
+        Path selectedModpackDir = selectedModpackPaths != null ? selectedModpackPaths.getModpackDir() : null;
+        String modpackFile = CustomFileUtils.formatPath(file, selectedModpackDir);
 
         for (Jsons.ModpackContentFields.ModpackContentItem item : ignoreList) {
             if (item.file.equals(modpackFile)) {

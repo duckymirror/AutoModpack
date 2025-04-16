@@ -4,6 +4,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.util.Util;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_loader_core.client.Changelogs;
 import pl.skidam.automodpack.client.audio.AudioManager;
 import pl.skidam.automodpack.client.ui.versioned.VersionedText;
@@ -15,13 +16,14 @@ import pl.skidam.automodpack_core.config.ConfigTools;
 import pl.skidam.automodpack_core.config.Jsons;
 import pl.skidam.automodpack_core.utils.ModpackContentTools;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ChangelogScreen extends VersionedScreen {
     private final Screen parent;
-    private final Path modpackDir;
+    private final ModpackPaths modpackPaths;
     private final Changelogs changelogs;
     private static Map<String, String> formattedChanges;
     private ListEntryWidget listEntryWidget;
@@ -29,10 +31,10 @@ public class ChangelogScreen extends VersionedScreen {
     private ButtonWidget backButton;
     private ButtonWidget openMainPageButton;
 
-    public ChangelogScreen(Screen parent, Path modpackDir, Changelogs changelogs) {
+    public ChangelogScreen(Screen parent, ModpackPaths modpackPaths, Changelogs changelogs) {
         super(VersionedText.literal("ChangelogScreen"));
         this.parent = parent;
-        this.modpackDir = modpackDir;
+        this.modpackPaths = modpackPaths;
         this.changelogs = changelogs;
 
         if (AudioManager.isMusicPlaying()) {
@@ -104,9 +106,9 @@ public class ChangelogScreen extends VersionedScreen {
     private void drawSummaryOfChanges(VersionedMatrices matrices) {
 
         if (modpackContent == null) {
-            var optionalModpackContentFile = ModpackContentTools.getModpackContentFile(modpackDir);
-            if (optionalModpackContentFile.isEmpty()) return;
-            modpackContent = ConfigTools.loadModpackContent(optionalModpackContentFile.get());
+            var optionalModpackContentFile = modpackPaths.getModpackContentFile();
+            if (!Files.exists(optionalModpackContentFile)) return;
+            modpackContent = ConfigTools.loadModpackContent(optionalModpackContentFile);
         }
 
         int modsAdded = 0;

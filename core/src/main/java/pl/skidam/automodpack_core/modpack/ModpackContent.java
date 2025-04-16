@@ -3,6 +3,7 @@ package pl.skidam.automodpack_core.modpack;
 import pl.skidam.automodpack_core.config.ConfigTools;
 import pl.skidam.automodpack_core.config.Jsons;
 import pl.skidam.automodpack_core.loader.LoaderManagerService;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_core.utils.*;
 
 import java.nio.file.Files;
@@ -12,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import static pl.skidam.automodpack_core.GlobalVariables.*;
-import static pl.skidam.automodpack_core.GlobalVariables.LOGGER;
 
 public class ModpackContent {
     public final Set<Jsons.ModpackContentFields.ModpackContentItem> list = Collections.synchronizedSet(new HashSet<>());
@@ -20,15 +20,16 @@ public class ModpackContent {
     private final String MODPACK_NAME;
     private final WildCards SYNCED_FILES_CARDS;
     private final WildCards EDITABLE_CARDS;
-    private final Path MODPACK_DIR;
+    private final ModpackPaths modpackPaths;
     private final ThreadPoolExecutor CREATION_EXECUTOR;
     private final Map<String, String> sha1MurmurMapPreviousContent = new HashMap<>();
 
-    public ModpackContent(String modpackName, Path cwd, Path modpackDir, List<String> syncedFiles, List<String> allowEditsInFiles, ThreadPoolExecutor CREATION_EXECUTOR) {
+    public ModpackContent(String modpackName, Path cwd, ModpackPaths modpackPaths, List<String> syncedFiles, List<String> allowEditsInFiles, ThreadPoolExecutor CREATION_EXECUTOR) {
+        Objects.requireNonNull(modpackPaths);
         this.MODPACK_NAME = modpackName;
-        this.MODPACK_DIR = modpackDir;
+        this.modpackPaths = modpackPaths;
         Set<Path> directoriesToSearch = new HashSet<>(2);
-        if (MODPACK_DIR != null) directoriesToSearch.add(MODPACK_DIR);
+        directoriesToSearch.add(this.modpackPaths.getModpackDir());
         if (cwd != null) {
             directoriesToSearch.add(cwd);
             this.SYNCED_FILES_CARDS = new WildCards(syncedFiles, Set.of(cwd)); // Synced files should search only in cwd
@@ -52,15 +53,13 @@ public class ModpackContent {
             List<CompletableFuture<Void>> creationFutures = Collections.synchronizedList(new ArrayList<>());
 
             // host-modpack generation
-            if (MODPACK_DIR != null) {
-                LOGGER.info("Syncing {}...", MODPACK_DIR.getFileName());
-                try (var pathStream = Files.walk(MODPACK_DIR)) {
-                    creationFutures.addAll(generateAsync(pathStream.toList()));
+            LOGGER.info("Syncing {}...", modpackPaths.getModpackDir().getFileName());
+            try (var pathStream = Files.walk(modpackPaths.getModpackDir())) {
+                creationFutures.addAll(generateAsync(pathStream.toList()));
 
-                    // Wait till finish
-                    creationFutures.forEach((CompletableFuture::join));
-                    creationFutures.clear();
-                }
+                // Wait till finish
+                creationFutures.forEach((CompletableFuture::join));
+                creationFutures.clear();
             }
 
             // synced files generation
@@ -93,8 +92,8 @@ public class ModpackContent {
     }
 
     public Optional<Jsons.ModpackContentFields> getPreviousContent() {
-        var optionalModpackContentFile = ModpackContentTools.getModpackContentFile(MODPACK_DIR);
-        return optionalModpackContentFile.map(ConfigTools::loadModpackContent);
+        var optionalModpackContentFile = modpackPaths.getModpackContentFile();
+        return Optional.ofNullable(ConfigTools.loadModpackContent(optionalModpackContentFile));
     }
 
 
@@ -107,7 +106,7 @@ public class ModpackContent {
             list.addAll(modpackContent.list);
 
             for (Jsons.ModpackContentFields.ModpackContentItem modpackContentItem : list) {
-                Path file = CustomFileUtils.getPath(MODPACK_DIR, modpackContentItem.file);
+                Path file = CustomFileUtils.getPath(modpackPaths.getModpackDir(), modpackContentItem.file);
                 if (!Files.exists(file)) file = CustomFileUtils.getPathFromCWD(modpackContentItem.file);
                 if (!Files.exists(file)) {
                     LOGGER.warn("File {} does not exist!", file);
@@ -139,7 +138,7 @@ public class ModpackContent {
             modpackContent.loader = LOADER;
             modpackContent.modpackName = MODPACK_NAME;
 
-            ConfigTools.saveModpackContent(hostModpackContentFile, modpackContent);
+            ConfigTools.saveModpackContent(modpackPaths.getModpackContentFile(), modpackContent);
         }
     }
 
@@ -165,7 +164,7 @@ public class ModpackContent {
                 pathsMap.put(item.sha1, file);
             }
         } catch (Exception e) {
-            LOGGER.error("Error while generating content for: " + file + " generated from: " + MODPACK_DIR, e);
+            LOGGER.error("Error while generating content for: " + file + " generated from: " + modpackPaths.getModpackDir(), e);
         }
     }
 
@@ -180,7 +179,7 @@ public class ModpackContent {
 
     public void remove(Path file) {
 
-        String modpackFile = CustomFileUtils.formatPath(file, MODPACK_DIR);
+        String modpackFile = CustomFileUtils.formatPath(file, modpackPaths.getModpackDir());
 
         synchronized (list) {
             for (Jsons.ModpackContentFields.ModpackContentItem item : this.list) {
@@ -195,11 +194,12 @@ public class ModpackContent {
     }
 
     // check if file is inside automodpack Dir or its sub-dirs, unless it's inside hostModpackDir with exception of hostModpackContentFile
-    public static boolean isInnerFile(Path file) {
+    public boolean isInnerFile(Path file) {
         Path normalizedFilePath = file.toAbsolutePath().normalize();
-        boolean isInner = normalizedFilePath.startsWith(automodpackDir.toAbsolutePath().normalize()) &&
-                !normalizedFilePath.startsWith(hostModpackDir.toAbsolutePath().normalize());
-        if (!isInner && normalizedFilePath.equals(hostModpackContentFile.toAbsolutePath().normalize())) {
+        boolean isInner = normalizedFilePath.startsWith(serverPaths.getDataDir().toAbsolutePath().normalize()) &&
+                !normalizedFilePath.startsWith(modpackPaths.getModpackDir().toAbsolutePath().normalize());
+        if (!isInner && normalizedFilePath.equals(modpackPaths.getModpackContentFile()
+                .toAbsolutePath().normalize())) {
             return true;
         }
 
@@ -218,7 +218,7 @@ public class ModpackContent {
             return null;
         }
 
-        String formattedFile = CustomFileUtils.formatPath(file, MODPACK_DIR);
+        String formattedFile = CustomFileUtils.formatPath(file, modpackPaths.getModpackDir());
 
         // modpackFile is relative path to ~/.minecraft/ (content format) so if it starts with /automodpack/ we dont want it
         if (formattedFile.startsWith("/automodpack/")) {

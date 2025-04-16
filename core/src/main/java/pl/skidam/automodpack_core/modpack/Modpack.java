@@ -1,5 +1,6 @@
 package pl.skidam.automodpack_core.modpack;
 
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_core.utils.*;
 
 import java.io.IOException;
@@ -13,6 +14,11 @@ import static pl.skidam.automodpack_core.GlobalVariables.*;
 public class Modpack {
     public final ThreadPoolExecutor CREATION_EXECUTOR = (ThreadPoolExecutor) Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() * 2), new CustomThreadFactoryBuilder().setNameFormat("AutoModpackCreation-%d").build());
     public final Map<String, ModpackContent> modpacks = Collections.synchronizedMap(new HashMap<>());
+    private final String modpackId;
+
+    public Modpack(String modpackId) {
+        this.modpackId = modpackId;
+    }
 
     private ModpackContent init() {
         if (isGenerating()) {
@@ -20,16 +26,17 @@ public class Modpack {
             return null;
         }
 
+        ModpackPaths hostContentModpackPaths = serverPaths.getMainModpackPaths(modpackId);
         try {
-            if (!Files.exists(hostContentModpackDir)) {
-                Files.createDirectories(hostContentModpackDir);
+            if (!Files.exists(hostContentModpackPaths.getModpackDir())) {
+                Files.createDirectories(hostContentModpackPaths.getModpackDir());
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         Path cwd = Path.of(System.getProperty("user.dir"));
-        return new ModpackContent(serverConfig.modpackName, cwd, hostContentModpackDir, serverConfig.syncedFiles, serverConfig.allowEditsInFiles, CREATION_EXECUTOR);
+        return new ModpackContent(serverConfig.modpackName, cwd, hostContentModpackPaths, serverConfig.syncedFiles, serverConfig.allowEditsInFiles, CREATION_EXECUTOR);
     }
 
     public boolean generateNew(ModpackContent content) {

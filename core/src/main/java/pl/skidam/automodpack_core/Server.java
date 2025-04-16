@@ -4,9 +4,12 @@ import pl.skidam.automodpack_core.config.ConfigTools;
 import pl.skidam.automodpack_core.config.Jsons;
 import pl.skidam.automodpack_core.modpack.Modpack;
 import pl.skidam.automodpack_core.modpack.ModpackContent;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
+import pl.skidam.automodpack_core.paths.ServerPaths;
 import pl.skidam.automodpack_core.protocol.netty.NettyServer;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import static pl.skidam.automodpack_core.GlobalVariables.*;
@@ -21,26 +24,26 @@ public class Server {
             return;
         }
 
-        NettyServer server = new NettyServer();
-        hostServer = server;
+        Path dataDir = Path.of(System.getProperty("user.dir")).resolve("modpacks");
+        ServerPaths serverPaths = new ServerPaths(dataDir);
 
         String modpackDirStr = args[0];
 
-        Path cwd = Path.of(System.getProperty("user.dir"));
-        Path modpackDir = cwd.resolve("modpacks").resolve(modpackDirStr);
+        ModpackPaths mainModpackPaths = serverPaths.getMainModpackPaths(modpackDirStr);
 
-        modpackDir.toFile().mkdirs();
+        mainModpackPaths.getModpackDir().toFile().mkdirs();
 
-        hostModpackContentFile = modpackDir.resolve("automodpack-content.json");
-        serverConfigFile = modpackDir.resolve("automodpack-server.json");
-        serverCoreConfigFile = modpackDir.resolve("automodpack-core.json");
+        NettyServer server = new NettyServer(serverPaths, mainModpackPaths);
+        hostServer = server;
 
-        serverConfig = ConfigTools.load(serverConfigFile, Jsons.ServerConfigFields.class);
+        Path serverCoreConfigFile = dataDir.resolve("automodpack-core.json");
+
+        serverConfig = ConfigTools.load(serverPaths.getConfigFile(), Jsons.ServerConfigFields.class);
         if (serverConfig != null) {
             serverConfig.syncedFiles = new ArrayList<>();
             serverConfig.hostModpackOnMinecraftPort = false;
             serverConfig.validateSecrets = false;
-            ConfigTools.save(serverConfigFile, serverConfig);
+            ConfigTools.save(serverPaths.getConfigFile(), serverConfig);
 
             if (serverConfig.hostPort == -1) {
                 LOGGER.error("Host port not set in config!");
@@ -57,11 +60,10 @@ public class Server {
             ConfigTools.save(serverCoreConfigFile, serverCoreConfig);
         }
 
-        Path mainModpackDir = modpackDir.resolve("main");
-        mainModpackDir.toFile().mkdirs();
+        mainModpackPaths.getModpackDir().toFile().mkdirs();
 
-        Modpack modpack = new Modpack();
-        ModpackContent modpackContent = new ModpackContent(serverConfig.modpackName, null, mainModpackDir, serverConfig.syncedFiles, serverConfig.allowEditsInFiles, modpack.CREATION_EXECUTOR);
+        Modpack modpack = new Modpack(modpackDirStr);
+        ModpackContent modpackContent = new ModpackContent(serverConfig.modpackName, null, mainModpackPaths, serverConfig.syncedFiles, serverConfig.allowEditsInFiles, modpack.CREATION_EXECUTOR);
         boolean generated = modpack.generateNew(modpackContent);
 
         if (generated) {

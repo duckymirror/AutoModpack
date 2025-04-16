@@ -1,8 +1,8 @@
 package pl.skidam.automodpack_core.utils;
 
 import pl.skidam.automodpack_core.config.Jsons;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -18,29 +18,29 @@ public class ModpackContentTools {
         return "other";
     }
 
-    public static Optional<Path> getModpackDir(String modpack) {
+    public static Optional<ModpackPaths> getClientModpackPaths(String modpack) {
         if (modpack == null || modpack.isEmpty()) {
             return Optional.empty();
         }
 
         // eg. modpack = /automodpack/modpacks/TestPack `directory`
 
-        return Optional.of(modpacksDir.resolve(modpack));
+        return Optional.of(clientPaths.getModpackPaths(modpack));
     }
 
-    public static Optional<Path> getModpackContentFile(Path modpackDir) {
-        if (!Files.exists(modpackDir)) {
-            return Optional.empty();
-        }
-
-        Path path = modpackDir.getParent().resolve(hostModpackContentFile.getFileName()); // server
-        if (!Files.exists(path)) {
-            path = modpackDir.resolve(hostModpackContentFile.getFileName()); // client
-            if (!Files.exists(path)) {
-                return Optional.empty();
-            }
-        }
-
-        return Optional.of(path);
-    }
+//    public static Optional<Path> getModpackContentFile(Path modpackDir) {
+//        if (!Files.exists(modpackDir)) {
+//            return Optional.empty();
+//        }
+//
+//        Path path = modpackDir.getParent().resolve(hostModpackContentFile.getFileName()); // server
+//        if (!Files.exists(path)) {
+//            path = modpackDir.resolve(hostModpackContentFile.getFileName()); // client
+//            if (!Files.exists(path)) {
+//                return Optional.empty();
+//            }
+//        }
+//
+//        return Optional.of(path);
+//    }
 }

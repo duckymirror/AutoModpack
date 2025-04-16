@@ -10,6 +10,8 @@ import io.netty.util.CharsetUtil;
 import pl.skidam.automodpack_core.GlobalVariables;
 import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.modpack.ModpackContent;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
+import pl.skidam.automodpack_core.paths.ServerModpackPaths;
 import pl.skidam.automodpack_core.protocol.netty.message.EchoMessage;
 import pl.skidam.automodpack_core.protocol.netty.message.FileRequestMessage;
 import pl.skidam.automodpack_core.protocol.netty.message.ProtocolMessage;
@@ -31,6 +33,11 @@ public class ServerMessageHandler extends SimpleChannelInboundHandler<ProtocolMe
 
     private static final byte PROTOCOL_VERSION = 1;
     private final Map<byte[], String> secretLookup = new HashMap<>();
+    private final ModpackPaths modpackPaths;
+
+    public ServerMessageHandler(ModpackPaths modpackPaths) {
+        this.modpackPaths = modpackPaths;
+    }
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
@@ -187,7 +194,7 @@ public class ServerMessageHandler extends SimpleChannelInboundHandler<ProtocolMe
 
     public Optional<Path> resolvePath(final String sha1) {
         if (sha1.isBlank()) {
-            return Optional.of(hostModpackContentFile);
+            return Optional.of(modpackPaths.getModpackContentFile());
         }
 
         return hostServer.getPath(sha1);

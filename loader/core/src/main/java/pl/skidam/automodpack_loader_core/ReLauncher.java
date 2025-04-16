@@ -1,6 +1,7 @@
 package pl.skidam.automodpack_loader_core;
 
 import pl.skidam.automodpack_core.callbacks.Callback;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_loader_core.client.Changelogs;
 import pl.skidam.automodpack_core.loader.LoaderManagerService;
 import pl.skidam.automodpack_loader_core.screen.ScreenManager;
@@ -15,19 +16,19 @@ import static pl.skidam.automodpack_core.GlobalVariables.*;
 public class ReLauncher {
 
     private final String updateMessage;
-    private final Path modpackDir;
+    private final ModpackPaths modpackPaths;
     private final UpdateType updateType;
     private final Changelogs changelogs;
 
     public ReLauncher(UpdateType updateType) {
-        this.modpackDir = null;
+        this.modpackPaths = null;
         this.updateType = updateType;
         this.changelogs = null;
         this.updateMessage = "Successfully updated AutoModpack!";
     }
 
-    public ReLauncher(Path modpackDir, UpdateType updateType, Changelogs changelogs) {
-        this.modpackDir = modpackDir;
+    public ReLauncher(ModpackPaths modpackPaths, UpdateType updateType, Changelogs changelogs) {
+        this.modpackPaths = modpackPaths;
         this.updateType = updateType;
         this.changelogs = changelogs;
         this.updateMessage = "Successfully updated the modpack!";
@@ -51,7 +52,7 @@ public class ReLauncher {
 
     private void handleClientRestart(Callback[] callbacks, boolean isHeadless) {
         if (updateType != null && new ScreenManager().getScreenString().isPresent()) {
-            new ScreenManager().restart(modpackDir, updateType, changelogs);
+            new ScreenManager().restart(modpackPaths, updateType, changelogs);
         } else if (preload) {
             Semaphore semaphore = null;
             final Thread shutdownHook = new Thread(() -> runCallbacks(callbacks));

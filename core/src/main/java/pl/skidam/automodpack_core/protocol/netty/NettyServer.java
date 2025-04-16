@@ -13,6 +13,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import io.netty.util.AttributeKey;
 import pl.skidam.automodpack_core.config.ConfigTools;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
+import pl.skidam.automodpack_core.paths.ServerPaths;
 import pl.skidam.automodpack_core.protocol.NetUtils;
 import pl.skidam.automodpack_core.protocol.netty.handler.ProtocolServerHandler;
 import pl.skidam.automodpack_core.utils.CustomThreadFactoryBuilder;
@@ -34,10 +36,17 @@ public class NettyServer {
     public static final int CHUNK_SIZE = 131072; // 128 KB - good for zstd
     private final Map<Channel, String> connections = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, Path> paths = Collections.synchronizedMap(new HashMap<>());
+    private final ServerPaths serverPaths;
     private ChannelFuture serverChannel;
     private Boolean shouldHost = false; // needed for stop modpack hosting for minecraft port
     private X509Certificate certificate;
     private SslContext sslCtx;
+    private final ModpackPaths modpackPaths;
+
+    public NettyServer(ServerPaths serverPaths, ModpackPaths modpackPaths) {
+        this.serverPaths = serverPaths;
+        this.modpackPaths = modpackPaths;
+    }
 
     public void addConnection(Channel channel, String secret) {
         synchronized (connections) {
@@ -74,18 +83,18 @@ public class NettyServer {
             X509Certificate cert;
             PrivateKey key;
 
-            if (!Files.exists(serverCertFile) || !Files.exists(serverPrivateKeyFile)) {
+            if (!Files.exists(serverPaths.getCertChainFile()) || !Files.exists(serverPaths.getPrivateKeyFile())) {
                 // Create a self-signed certificate
                 KeyPair keyPair = NetUtils.generateKeyPair();
                 cert = NetUtils.selfSign(keyPair);
                 key = keyPair.getPrivate();
 
                 // save it to the file
-                NetUtils.saveCertificate(cert, serverCertFile);
-                NetUtils.savePrivateKey(keyPair.getPrivate(), serverPrivateKeyFile);
+                NetUtils.saveCertificate(cert, serverPaths.getCertChainFile());
+                NetUtils.savePrivateKey(keyPair.getPrivate(), serverPaths.getPrivateKeyFile());
             } else {
-                cert = NetUtils.loadCertificate(serverCertFile);
-                key = NetUtils.loadPrivateKey(serverPrivateKeyFile);
+                cert = NetUtils.loadCertificate(serverPaths.getCertChainFile());
+                key = NetUtils.loadPrivateKey(serverPaths.getPrivateKeyFile());
             }
 
             if (cert == null || key == null) {
@@ -129,7 +138,7 @@ public class NettyServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
-                            ch.pipeline().addLast(MOD_ID, new ProtocolServerHandler(sslCtx));
+                            ch.pipeline().addLast(MOD_ID, new ProtocolServerHandler(sslCtx, modpackPaths));
                         }
                     })
                     .group(eventLoopGroup)
@@ -209,7 +218,7 @@ public class NettyServer {
             String publicIp = AddressHelpers.getPublicIp();
             if (publicIp != null) {
                 serverConfig.hostIp = publicIp;
-                ConfigTools.save(serverConfigFile, serverConfig);
+                ConfigTools.save(serverPaths.getConfigFile(), serverConfig);
                 LOGGER.warn("Setting Host IP to {}", serverConfig.hostIp);
             } else {
                 LOGGER.error("Host IP isn't set in config, please change it manually! Couldn't get public IP");
@@ -220,7 +229,7 @@ public class NettyServer {
         if (serverConfig.updateIpsOnEveryStart || (serverConfig.hostLocalIp == null || serverConfig.hostLocalIp.isEmpty())) {
             try {
                 serverConfig.hostLocalIp = AddressHelpers.getLocalIp();
-                ConfigTools.save(serverConfigFile, serverConfig);
+                ConfigTools.save(serverPaths.getConfigFile(), serverConfig);
                 LOGGER.warn("Setting Host local IP to {}", serverConfig.hostLocalIp);
             } catch (Exception e) {
                 e.printStackTrace();

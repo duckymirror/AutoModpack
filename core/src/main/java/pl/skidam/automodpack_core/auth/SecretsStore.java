@@ -52,8 +52,8 @@ public class SecretsStore {
         }
     }
 
-    private static final SecretsCache hostSecrets = new SecretsCache(GlobalVariables.serverSecretsFile);
-    private static final SecretsCache clientSecrets = new SecretsCache(GlobalVariables.clientSecretsFile);
+    private static final SecretsCache hostSecrets = new SecretsCache(GlobalVariables.serverPaths.getServerSecretsFile());
+    private static final SecretsCache clientSecrets = new SecretsCache(GlobalVariables.clientPaths.getClientSecretsFile());
 
     public static Map.Entry<String, Secrets.Secret>  getHostSecret(String secret) {
         hostSecrets.load();

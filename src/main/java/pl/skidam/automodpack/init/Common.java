@@ -6,6 +6,8 @@ import pl.skidam.automodpack.loader.GameCall;
 import pl.skidam.automodpack.networking.ModPackets;
 import pl.skidam.automodpack_core.modpack.Modpack;
 import pl.skidam.automodpack_core.loader.LoaderManagerService;
+import pl.skidam.automodpack_core.paths.ModDefaults;
+import pl.skidam.automodpack_core.paths.ServerPaths;
 import pl.skidam.automodpack_core.protocol.netty.NettyServer;
 import pl.skidam.automodpack_core.protocol.netty.TrafficShaper;
 
@@ -43,8 +45,9 @@ public class Common {
 
     public static void init() {
         GAME_CALL = new GameCall();
-        hostServer = new NettyServer();
-        modpack = new Modpack();
+        ServerPaths serverPaths = new ServerPaths(ModDefaults.DATA_DIR);
+        hostServer = new NettyServer(serverPaths, serverPaths.getMainModpackPaths(ModDefaults.HOST_MODPACK_ID));
+        modpack = new Modpack(ModDefaults.HOST_MODPACK_ID);
     }
 
     public static void afterSetupServer() {

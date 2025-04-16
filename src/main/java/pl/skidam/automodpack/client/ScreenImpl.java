@@ -5,6 +5,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.util.Util;
 import pl.skidam.automodpack.client.ui.*;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_loader_core.client.Changelogs;
 import pl.skidam.automodpack_loader_core.client.ModpackUpdater;
 import pl.skidam.automodpack_loader_core.screen.ScreenService;
@@ -12,7 +13,6 @@ import pl.skidam.automodpack_loader_core.utils.DownloadManager;
 import pl.skidam.automodpack_loader_core.utils.FetchManager;
 import pl.skidam.automodpack_loader_core.utils.UpdateType;
 
-import java.nio.file.Path;
 import java.util.Optional;
 
 public class ScreenImpl implements ScreenService {
@@ -84,12 +84,12 @@ public class ScreenImpl implements ScreenService {
         public static void fetch(Object fetchManager) {
             Screens.setScreen(new FetchScreen((FetchManager) fetchManager));
         }
-        public static void changelog(Object parent, Object modpackDir, Object changelog) {
-            Screens.setScreen(new ChangelogScreen((Screen) parent, (Path) modpackDir, (Changelogs) changelog));
+        public static void changelog(Object parent, Object modpackPaths, Object changelog) {
+            Screens.setScreen(new ChangelogScreen((Screen) parent, (ModpackPaths) modpackPaths, (Changelogs) changelog));
         }
 
-        public static void restart(Object modpackDir, Object updateType, Object changelogs) {
-            Screens.setScreen(new RestartScreen((Path) modpackDir, (UpdateType) updateType, (Changelogs) changelogs));
+        public static void restart(Object modpackPaths, Object updateType, Object changelogs) {
+            Screens.setScreen(new RestartScreen((ModpackPaths) modpackPaths, (UpdateType) updateType, (Changelogs) changelogs));
         }
 
         public static void danger(Object parent, Object modpackUpdaterInstance) {

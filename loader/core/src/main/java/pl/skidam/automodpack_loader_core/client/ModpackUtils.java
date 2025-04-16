@@ -3,11 +3,11 @@ package pl.skidam.automodpack_loader_core.client;
 import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.config.ConfigTools;
 import pl.skidam.automodpack_core.config.Jsons;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_core.protocol.DownloadClient;
 import pl.skidam.automodpack_core.utils.AddressHelpers;
 import pl.skidam.automodpack_core.utils.CustomFileUtils;
 import pl.skidam.automodpack_core.utils.FileInspection;
-import pl.skidam.automodpack_core.utils.ModpackContentTools;
 
 import java.io.*;
 import java.net.*;
@@ -20,16 +20,16 @@ import static pl.skidam.automodpack_core.GlobalVariables.*;
 
 public class ModpackUtils {
 
-    public static boolean isUpdate(Jsons.ModpackContentFields serverModpackContent, Path modpackDir) {
+    public static boolean isUpdate(Jsons.ModpackContentFields serverModpackContent, ModpackPaths modpackPaths) {
         if (serverModpackContent == null || serverModpackContent.list == null) {
             throw new IllegalArgumentException("Server modpack content list is null");
         }
 
         // get client modpack content
-        var optionalClientModpackContentFile = ModpackContentTools.getModpackContentFile(modpackDir);
-        if (optionalClientModpackContentFile.isPresent() && Files.exists(optionalClientModpackContentFile.get())) {
+        var optionalClientModpackContentFile = modpackPaths.getModpackContentFile();
+        if (Files.exists(optionalClientModpackContentFile)) {
 
-            Jsons.ModpackContentFields clientModpackContent = ConfigTools.loadModpackContent(optionalClientModpackContentFile.get());
+            Jsons.ModpackContentFields clientModpackContent = ConfigTools.loadModpackContent(optionalClientModpackContentFile);
 
             if (clientModpackContent == null) {
                 return true;
@@ -40,7 +40,7 @@ public class ModpackUtils {
                 String file = modpackContentField.file;
                 String serverSHA1 = modpackContentField.sha1;
 
-                Path path = CustomFileUtils.getPath(modpackDir, file);
+                Path path = CustomFileUtils.getPath(modpackPaths.getModpackDir(), file);
 
                 if (Files.exists(path)) {
                     if (modpackContentField.editable) continue;
@@ -48,7 +48,11 @@ public class ModpackUtils {
                     Path standardPath = CustomFileUtils.getPathFromCWD(file);
                     if (Files.exists(standardPath) && Objects.equals(serverSHA1, CustomFileUtils.getHash(standardPath))) {
                         LOGGER.info("File {} already exists on client, coping to modpack", file);
-                        try { CustomFileUtils.copyFile(standardPath, path); } catch (IOException e) { e.printStackTrace(); }
+                        try {
+                            CustomFileUtils.copyFile(standardPath, path);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                         continue;
                     } else {
                         LOGGER.info("File does not exists {} - {}", standardPath, file);
@@ -71,7 +75,7 @@ public class ModpackUtils {
                 }
             }
 
-            LOGGER.info("{} is up to date!", modpackDir);
+            LOGGER.info("{} is up to date!", modpackPaths.getModpackDir());
             return false;
         } else {
             return true;
@@ -164,7 +168,7 @@ public class ModpackUtils {
         Set<String> newIgnoredFiles = new HashSet<>(ignoredFiles);
 
         for (FileInspection.Mod mod : conflictingNestedMods) {
-            newIgnoredFiles.add(CustomFileUtils.formatPath(mod.modPath(), modpacksDir));
+            newIgnoredFiles.add(CustomFileUtils.formatPath(mod.modPath(), clientPaths.getModpacksDir()));
         }
 
         return newIgnoredFiles;
@@ -262,9 +266,10 @@ public class ModpackUtils {
         }
     }
 
-    public static Path renameModpackDir(Jsons.ModpackContentFields serverModpackContent, Path modpackDir) {
+    public static ModpackPaths renameModpackDir(Jsons.ModpackContentFields serverModpackContent,
+                                                ModpackPaths modpackPaths) {
         if (clientConfig.installedModpacks == null || clientConfig.selectedModpack == null || clientConfig.selectedModpack.isBlank()) {
-            return modpackDir;
+            return modpackPaths;
         }
 
         String installedModpackName = clientConfig.selectedModpack;
@@ -274,53 +279,56 @@ public class ModpackUtils {
 
         if (!serverModpackName.equals(installedModpackName) && !serverModpackName.isEmpty()) {
 
-            Path newModpackDir = modpackDir.getParent().resolve(serverModpackName);
+            ModpackPaths newModpackPaths = modpackPaths.withReplacedName(serverModpackName);
 
             try {
-                Files.move(modpackDir, newModpackDir, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(modpackPaths.getModpackDir(), newModpackPaths.getModpackDir(), StandardCopyOption.REPLACE_EXISTING);
 
                 removeModpackFromList(installedModpackName);
 
-                LOGGER.info("Changed modpack name of {} to {}", modpackDir.getFileName().toString(), serverModpackName);
+                LOGGER.info("Changed modpack name of {} to {}",
+                        modpackPaths.getModpackDir().getFileName().toString(), serverModpackName);
             } catch (DirectoryNotEmptyException ignored) {
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
-            selectModpack(newModpackDir, installedModpackAddress, Set.of());
+            selectModpack(newModpackPaths, installedModpackAddress, Set.of());
 
-            return newModpackDir;
+            return newModpackPaths;
         }
 
-        return modpackDir;
+        return modpackPaths;
     }
 
     // Returns true if value changed
-    public static boolean selectModpack(Path modpackDirToSelect, InetSocketAddress modpackAddressToSelect, Set<String> newDownloadedFiles) {
-        final String modpackToSelect = modpackDirToSelect.getFileName().toString();
+    public static boolean selectModpack(ModpackPaths modpackPathsToSelect, InetSocketAddress modpackAddressToSelect,
+                                        Set<String> newDownloadedFiles) {
+        final String modpackToSelect = modpackPathsToSelect.getModpackDir().getFileName().toString();
         String selectedModpack = clientConfig.selectedModpack;
 
         if (selectedModpack != null && !selectedModpack.isBlank()) {
             // Save current editable files
-            Path selectedModpackDir = modpacksDir.resolve(selectedModpack);
-            Path selectedModpackContentFile = selectedModpackDir.resolve(hostModpackContentFile.getFileName());
+            ModpackPaths selectedModpackPaths = clientPaths.getModpackPaths(selectedModpack);
+            Path selectedModpackContentFile = selectedModpackPaths.getModpackContentFile();
             Jsons.ModpackContentFields modpackContent = ConfigTools.loadModpackContent(selectedModpackContentFile);
             if (modpackContent != null) {
                 Set<String> editableFiles = getEditableFiles(modpackContent.list);
-                ModpackUtils.preserveEditableFiles(selectedModpackDir, editableFiles, newDownloadedFiles);
+                ModpackUtils.preserveEditableFiles(selectedModpackPaths.getModpackDir(), editableFiles, newDownloadedFiles);
             }
         }
 
         // Copy editable files from modpack to select
-        Path modpackContentFile = modpackDirToSelect.resolve(hostModpackContentFile.getFileName());
+        Path modpackContentFile = modpackPathsToSelect.getModpackContentFile();
         Jsons.ModpackContentFields modpackContentToSelect = ConfigTools.loadModpackContent(modpackContentFile);
         if (modpackContentToSelect != null) {
             Set<String> editableFiles = getEditableFiles(modpackContentToSelect.list);
-            ModpackUtils.copyPreviousEditableFiles(modpackDirToSelect, editableFiles, newDownloadedFiles);
+            ModpackUtils.copyPreviousEditableFiles(modpackPathsToSelect.getModpackDir(), editableFiles,
+                    newDownloadedFiles);
         }
 
         clientConfig.selectedModpack = modpackToSelect;
-        ConfigTools.save(clientConfigFile, clientConfig);
+        ConfigTools.save(clientPaths.getClientConfigFile(), clientConfig);
         ModpackUtils.addModpackToList(modpackToSelect, modpackAddressToSelect);
 
         return !Objects.equals(modpackToSelect, selectedModpack);
@@ -335,7 +343,7 @@ public class ModpackUtils {
             Map<String, String> modpacks = new HashMap<>(clientConfig.installedModpacks);
             modpacks.remove(modpackName);
             clientConfig.installedModpacks = modpacks;
-            ConfigTools.save(clientConfigFile, clientConfig);
+            ConfigTools.save(clientPaths.getClientConfigFile(), clientConfig);
         }
     }
 
@@ -349,11 +357,11 @@ public class ModpackUtils {
         modpacks.put(modpackName, addressString);
         clientConfig.installedModpacks = modpacks;
 
-        ConfigTools.save(clientConfigFile, clientConfig);
+        ConfigTools.save(clientPaths.getClientConfigFile(), clientConfig);
     }
 
     // Returns modpack name formatted for path or url if server doesn't provide modpack name
-    public static Path getModpackPath(InetSocketAddress address, String modpackName) {
+    public static ModpackPaths getModpackPaths(InetSocketAddress address, String modpackName) {
 
         String strAddress = address.getHostString() + ":" + address.getPort();
         String correctedName = strAddress;
@@ -362,7 +370,7 @@ public class ModpackUtils {
             correctedName = FileInspection.fixFileName(strAddress);
         }
 
-        Path modpackDir = CustomFileUtils.getPath(modpacksDir, correctedName);
+        ModpackPaths modpackDir = clientPaths.getModpackPaths(correctedName);
 
         if (!modpackName.isEmpty()) {
             // Check if we don't have already installed modpack via this link
@@ -376,7 +384,7 @@ public class ModpackUtils {
                 nameFromName = FileInspection.fixFileName(modpackName);
             }
 
-            modpackDir = CustomFileUtils.getPath(modpacksDir, nameFromName);
+            modpackDir = clientPaths.getModpackPaths(nameFromName);
         }
 
         return modpackDir;
@@ -384,13 +392,13 @@ public class ModpackUtils {
 
     public static Optional<Jsons.ModpackContentFields> requestServerModpackContent(InetSocketAddress address, Secrets.Secret secret) {
         return fetchModpackContent(address, secret,
-                (client) -> client.downloadFile(new byte[0], modpackContentTempFile, null),
+                (client) -> client.downloadFile(new byte[0], clientPaths.getModpackContentTempFile(), null),
                 "Fetched");
     }
 
     public static Optional<Jsons.ModpackContentFields> refreshServerModpackContent(InetSocketAddress address, Secrets.Secret secret, byte[][] fileHashes) {
         return fetchModpackContent(address, secret,
-                (client) -> client.requestRefresh(fileHashes, modpackContentTempFile),
+                (client) -> client.requestRefresh(fileHashes, clientPaths.getModpackContentTempFile()),
                 "Re-fetched");
     }
 
@@ -406,7 +414,7 @@ public class ModpackUtils {
             var future = operation.apply(client);
             Path path = future.get();
             var content = Optional.ofNullable(ConfigTools.loadModpackContent(path));
-            Files.deleteIfExists(modpackContentTempFile);
+            Files.deleteIfExists(clientPaths.getModpackContentTempFile());
 
             if (content.isPresent() && potentiallyMalicious(content.get())) {
                 return Optional.empty();

@@ -4,6 +4,7 @@ import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.auth.SecretsStore;
 import pl.skidam.automodpack_core.config.Jsons;
 import pl.skidam.automodpack_core.config.ConfigTools;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_core.protocol.DownloadClient;
 import pl.skidam.automodpack_core.utils.*;
 import pl.skidam.automodpack_loader_core.ReLauncher;
@@ -35,7 +36,7 @@ public class ModpackUpdater {
     private final Set<String> newDownloadedFiles = new HashSet<>(); // Only files which did not exist before. Because some files may have the same name/path and be updated.
     private InetSocketAddress modpackAddress;
     private Secrets.Secret modpackSecret;
-    private Path modpackDir;
+    private ModpackPaths modpackPaths;
     private Path modpackContentFile;
 
 
@@ -43,19 +44,20 @@ public class ModpackUpdater {
         return serverModpackContent.modpackName;
     }
 
-    public void prepareUpdate(Jsons.ModpackContentFields modpackContent, InetSocketAddress address, Secrets.Secret secret, Path modpackPath) {
+    public void prepareUpdate(Jsons.ModpackContentFields modpackContent, InetSocketAddress address,
+                              Secrets.Secret secret, ModpackPaths modpackPaths) {
         serverModpackContent = modpackContent;
         modpackAddress = address;
         modpackSecret = secret;
-        modpackDir = modpackPath;
+        this.modpackPaths = modpackPaths;
 
-        if (modpackAddress == null || modpackPath.toString().isEmpty()) {
+        if (modpackAddress == null || modpackPaths.getModpackDir().toString().isEmpty()) {
             throw new IllegalArgumentException("Address or modpackPath is null or empty");
         }
 
         try {
-            modpackContentFile = modpackDir.resolve(hostModpackContentFile.getFileName());
-            workaroundUtil = new WorkaroundUtil(modpackDir);
+            modpackContentFile = modpackPaths.getModpackContentFile();
+            workaroundUtil = new WorkaroundUtil(modpackPaths.getModpackDir());
 
             // Handle the case where serverModpackContent is null
             if (serverModpackContent == null) {
@@ -67,17 +69,17 @@ public class ModpackUpdater {
             modpackContentJson = GSON.toJson(serverModpackContent);
 
             // Create directories if they don't exist
-            if (!Files.exists(modpackDir)) {
-                Files.createDirectories(modpackDir);
+            if (!Files.exists(modpackPaths.getModpackDir())) {
+                Files.createDirectories(modpackPaths.getModpackDir());
             }
 
             // Handle existing modpack content file
             if (Files.exists(modpackContentFile)) {
-                modpackDir = ModpackUtils.renameModpackDir(serverModpackContent, modpackDir);
-                modpackContentFile = modpackDir.resolve(modpackContentFile.getFileName());
+                modpackPaths = ModpackUtils.renameModpackDir(serverModpackContent, modpackPaths);
+                modpackContentFile = modpackPaths.getModpackContentFile();
 
                 // Check if an update is needed
-                if (!ModpackUtils.isUpdate(serverModpackContent, modpackDir)) {
+                if (!ModpackUtils.isUpdate(serverModpackContent, modpackPaths)) {
                     LOGGER.info("Modpack is up to date");
                     Files.writeString(modpackContentFile, modpackContentJson);
                     CheckAndLoadModpack();
@@ -97,7 +99,7 @@ public class ModpackUpdater {
     }
 
     public void CheckAndLoadModpack() throws Exception {
-        if (!Files.exists(modpackDir))
+        if (!Files.exists(modpackPaths.getModpackDir()))
             return;
 
         boolean requiresRestart = applyModpack();
@@ -105,7 +107,7 @@ public class ModpackUpdater {
         if (requiresRestart) {
             LOGGER.info("Modpack is not loaded");
             UpdateType updateType = fullDownload ? UpdateType.FULL : UpdateType.UPDATE;
-            new ReLauncher(modpackDir, updateType, changelogs).restart(true);
+            new ReLauncher(modpackPaths, updateType, changelogs).restart(true);
             return;
         }
 
@@ -121,7 +123,7 @@ public class ModpackUpdater {
                         .toList();
             }
 
-            Path modpackModsDir = modpackDir.resolve("mods");
+            Path modpackModsDir = modpackPaths.getModpackDir().resolve("mods");
             if (Files.exists(modpackModsDir)) {
                 try (Stream<Path> modpackModsStream = Files.list(modpackModsDir)) {
                     modpackMods = modpackModsStream
@@ -158,9 +160,9 @@ public class ModpackUpdater {
 
         try {
             // Rename modpack
-            modpackDir = ModpackUtils.renameModpackDir(serverModpackContent, modpackDir);
-            modpackContentFile = modpackDir.resolve(modpackContentFile.getFileName());
-            workaroundUtil = new WorkaroundUtil(modpackDir);
+            modpackPaths = ModpackUtils.renameModpackDir(serverModpackContent, modpackPaths);
+            modpackContentFile = modpackPaths.getModpackContentFile();
+            workaroundUtil = new WorkaroundUtil(modpackPaths.getModpackDir());
 
             Iterator<Jsons.ModpackContentFields.ModpackContentItem> iterator = serverModpackContent.list.iterator();
 
@@ -174,7 +176,7 @@ public class ModpackUpdater {
                 String file = modpackContentField.file;
                 String serverSHA1 = modpackContentField.sha1;
 
-                Path path = CustomFileUtils.getPath(modpackDir, file);
+                Path path = CustomFileUtils.getPath(modpackPaths.getModpackDir(), file);
 
                 if (Files.exists(path) && modpackContentField.editable) {
                     skippedEditableFiles++;
@@ -248,7 +250,7 @@ public class ModpackUpdater {
                     String fileName = item.file;
                     String serverSHA1 = item.sha1;
 
-                    Path downloadFile = CustomFileUtils.getPath(modpackDir, fileName);
+                    Path downloadFile = CustomFileUtils.getPath(modpackPaths.getModpackDir(), fileName);
 
                     if (!Files.exists(downloadFile)) {
                         newDownloadedFiles.add(fileName);
@@ -337,7 +339,7 @@ public class ModpackUpdater {
                         String fileName = item.file;
                         String serverSHA1 = item.sha1;
 
-                        Path downloadFile = CustomFileUtils.getPath(modpackDir, fileName);
+                        Path downloadFile = CustomFileUtils.getPath(modpackPaths.getModpackDir(), fileName);
 
                         LOGGER.info("Retrying to download {} from {}", fileName, modpackAddress.getAddress().getHostName());
 
@@ -397,7 +399,7 @@ public class ModpackUpdater {
                 LOGGER.info("Update completed! Took: {}ms", System.currentTimeMillis() - start);
 
                 UpdateType updateType = fullDownload ? UpdateType.FULL : UpdateType.UPDATE;
-                new ReLauncher(modpackDir, updateType, changelogs).restart(false);
+                new ReLauncher(modpackPaths, updateType, changelogs).restart(false);
             }
         } catch (SocketTimeoutException | ConnectException e) {
             LOGGER.error("{} is not responding", "Modpack host of " + modpackAddress, e);
@@ -411,7 +413,7 @@ public class ModpackUpdater {
 
     // returns true if restart is required
     private boolean applyModpack() throws Exception {
-        ModpackUtils.selectModpack(modpackDir, modpackAddress, newDownloadedFiles);
+        ModpackUtils.selectModpack(modpackPaths, modpackAddress, newDownloadedFiles);
         try { // try catch this error there because we don't want to stop the whole method just because of that
             SecretsStore.saveClientSecret(clientConfig.selectedModpack, modpackSecret);
         } catch (IllegalArgumentException e) {
@@ -444,14 +446,15 @@ public class ModpackUpdater {
         }
 
         boolean needsRestart0 = deleteNonModpackFiles(modpackContent);
-        Set<String> workaroundMods =  workaroundUtil.getWorkaroundMods(modpackContent);
+        Set<String> workaroundMods = workaroundUtil.getWorkaroundMods(modpackContent);
         Set<String> filesNotToCopy = getIgnoredFiles(modpackContent.list, workaroundMods);
 
         // Copy files to running directory
-        boolean needsRestart1 = ModpackUtils.correctFilesLocations(modpackDir, modpackContent, filesNotToCopy);
+        boolean needsRestart1 = ModpackUtils.correctFilesLocations(modpackPaths.getModpackDir(), modpackContent,
+                filesNotToCopy);
 
         // Prepare modpack, analyze nested mods, copy necessary nested mods over to standard mods directory
-        List<FileInspection.Mod> conflictingNestedMods = MODPACK_LOADER.getModpackNestedConflicts(modpackDir);
+        List<FileInspection.Mod> conflictingNestedMods = MODPACK_LOADER.getModpackNestedConflicts(modpackPaths.getModpackDir());
 
         if (!conflictingNestedMods.isEmpty()) {
             LOGGER.warn("Found conflicting nested mods: {}", conflictingNestedMods);
@@ -462,7 +465,7 @@ public class ModpackUpdater {
         final List<Path> standardMods;
         final Collection<FileInspection.Mod> standardModList;
 
-        Path modpackModsDir = modpackDir.resolve("mods");
+        Path modpackModsDir = modpackPaths.getModpackDir().resolve("mods");
         if (Files.exists(modpackModsDir)) {
             try (Stream<Path> modpackModsStream = Files.list(modpackModsDir)) {
                 modpackMods = modpackModsStream.toList();
@@ -485,13 +488,13 @@ public class ModpackUpdater {
         Set<String> ignoredFiles = ModpackUtils.getIgnoredWithNested(conflictingNestedMods, filesNotToCopy);
 
         // Remove duplicate mods
-        boolean needsRestart3 = ModpackUtils.removeDupeMods(modpackDir, standardModList, modpackModList, ignoredFiles, workaroundMods);
+        boolean needsRestart3 = ModpackUtils.removeDupeMods(modpackPaths.getModpackDir(), standardModList, modpackModList, ignoredFiles, workaroundMods);
 
         return needsRestart0 || needsRestart1 || needsRestart2 || needsRestart3;
     }
 
     // returns set of formated files which we should not copy to the cwd - let them stay in the modpack directory
-    private Set<String> getIgnoredFiles(Set<Jsons. ModpackContentFields. ModpackContentItem> modpackContentItems, Set<String> workaroundMods) {
+    private Set<String> getIgnoredFiles(Set<Jsons.ModpackContentFields.ModpackContentItem> modpackContentItems, Set<String> workaroundMods) {
         Set<String> filesNotToCopy = new HashSet<>();
 
         // Make list of files which we do not copy to the running directory
@@ -515,7 +518,7 @@ public class ModpackUpdater {
     private boolean deleteNonModpackFiles(Jsons.ModpackContentFields modpackContent) throws IOException {
         List<String> modpackFiles = modpackContent.list.stream().map(modpackContentField -> modpackContentField.file).toList();
         List<Path> pathList;
-        try (Stream<Path> pathStream = Files.walk(modpackDir)) {
+        try (Stream<Path> pathStream = Files.walk(modpackPaths.getModpackDir())) {
             pathList = pathStream.toList();
         }
         Set<String> workaroundMods = workaroundUtil.getWorkaroundMods(modpackContent);
@@ -527,7 +530,7 @@ public class ModpackUpdater {
                 continue;
             }
 
-            String formattedFile = CustomFileUtils.formatPath(path, modpackDir);
+            String formattedFile = CustomFileUtils.formatPath(path, modpackPaths.getModpackDir());
             if (modpackFiles.contains(formattedFile)) {
                 continue;
             }

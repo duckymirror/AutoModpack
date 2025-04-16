@@ -5,6 +5,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_core.protocol.netty.NettyServer;
 import pl.skidam.automodpack_core.protocol.netty.TrafficShaper;
 
@@ -15,9 +16,11 @@ import static pl.skidam.automodpack_core.protocol.NetUtils.*;
 public class ProtocolServerHandler extends ByteToMessageDecoder {
 
     private final SslContext sslCtx;
-    
-    public ProtocolServerHandler(SslContext sslCtx) {
+    private final ModpackPaths modpackPaths;
+
+    public ProtocolServerHandler(SslContext sslCtx, ModpackPaths modpackPaths) {
         this.sslCtx = sslCtx;
+        this.modpackPaths = modpackPaths;
     }
 
     @Override
@@ -56,7 +59,7 @@ public class ProtocolServerHandler extends ByteToMessageDecoder {
                 ctx.pipeline().addLast("zstd-decoder", new ZstdDecoder());
                 ctx.pipeline().addLast("chunked-write", new ChunkedWriteHandler());
                 ctx.pipeline().addLast("protocol-msg-decoder", new ProtocolMessageDecoder());
-                ctx.pipeline().addLast("msg-handler", new ServerMessageHandler());
+                ctx.pipeline().addLast("msg-handler", new ServerMessageHandler(modpackPaths));
             }
 
             // Always remove this handler after processing if its still there

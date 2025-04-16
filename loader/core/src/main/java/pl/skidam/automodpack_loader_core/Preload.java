@@ -1,9 +1,13 @@
 package pl.skidam.automodpack_loader_core;
 
+import pl.skidam.automodpack_core.GlobalVariables;
 import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.auth.SecretsStore;
 import pl.skidam.automodpack_core.config.ConfigTools;
 import pl.skidam.automodpack_core.config.Jsons;
+import pl.skidam.automodpack_core.paths.ClientPaths;
+import pl.skidam.automodpack_core.paths.ModDefaults;
+import pl.skidam.automodpack_core.paths.ServerPaths;
 import pl.skidam.automodpack_core.utils.*;
 import pl.skidam.automodpack_loader_core.client.ModpackUpdater;
 import pl.skidam.automodpack_loader_core.client.ModpackUtils;
@@ -39,14 +43,14 @@ public class Preload {
 
     private void updateAll() {
 
-        var optionalSelectedModpackDir = ModpackContentTools.getModpackDir(clientConfig.selectedModpack);
+        var optionalSelectedModpackDir = ModpackContentTools.getClientModpackPaths(clientConfig.selectedModpack);
 
         if (LOADER_MANAGER.getEnvironmentType() == LoaderManagerService.EnvironmentType.SERVER || optionalSelectedModpackDir.isEmpty()) {
             SelfUpdater.update();
             return;
         }
 
-        selectedModpackDir = optionalSelectedModpackDir.get();
+        selectedModpackPaths = optionalSelectedModpackDir.get();
         String selectedModpackLink = "";
         if (!clientConfig.selectedModpack.isBlank() && clientConfig.installedModpacks.containsKey(clientConfig.selectedModpack)) {
             selectedModpackLink = clientConfig.installedModpacks.get(clientConfig.selectedModpack);
@@ -68,7 +72,7 @@ public class Preload {
             if (newSelectedModpackLink != null && !newSelectedModpackLink.isBlank()) {
                 LOGGER.info("Updated modpack link to new format: {} -> {}", selectedModpackLink, newSelectedModpackLink);
                 clientConfig.installedModpacks.put(clientConfig.selectedModpack, newSelectedModpackLink);
-                ConfigTools.save(clientConfigFile, clientConfig);
+                ConfigTools.save(clientPaths.getClientConfigFile(), clientConfig);
                 selectedModpackLink = newSelectedModpackLink;
             }
         }
@@ -77,7 +81,7 @@ public class Preload {
         Secrets.Secret secret = SecretsStore.getClientSecret(clientConfig.selectedModpack);
 
         var optionalLatestModpackContent = ModpackUtils.requestServerModpackContent(selectedModpackAddress, secret);
-        var latestModpackContent = ConfigTools.loadModpackContent(selectedModpackDir.resolve(hostModpackContentFile.getFileName()));
+        var latestModpackContent = ConfigTools.loadModpackContent(selectedModpackPaths.getModpackContentFile());
 
         // Use the latest modpack content if available
         if (optionalLatestModpackContent.isPresent()) {
@@ -93,13 +97,14 @@ public class Preload {
         CustomFileUtils.deleteDummyFiles(Path.of(System.getProperty("user.dir")), latestModpackContent == null ? null : latestModpackContent.list);
 
         // Update modpack
-        new ModpackUpdater().prepareUpdate(latestModpackContent, selectedModpackAddress, secret, selectedModpackDir);
+        new ModpackUpdater().prepareUpdate(latestModpackContent, selectedModpackAddress, secret, selectedModpackPaths);
     }
 
 
     private void initializeGlobalVariables() {
         // Initialize global variables
         preload = true;
+        GlobalVariables.init(new ServerPaths(ModDefaults.DATA_DIR), new ClientPaths(ModDefaults.DATA_DIR));
         LOADER_MANAGER = new LoaderManager();
         MODPACK_LOADER = new ModpackLoader();
         MC_VERSION = LOADER_MANAGER.getModVersion("minecraft");
@@ -126,17 +131,18 @@ public class Preload {
 
         // load client config
         if (clientConfigOverride == null) {
-            clientConfig = ConfigTools.load(clientConfigFile, Jsons.ClientConfigFields.class);
+            clientConfig = ConfigTools.load(clientPaths.getClientConfigFile(), Jsons.ClientConfigFields.class);
         } else {
             // TODO: when connecting to the new server which provides modpack different modpack, ask the user if they want, stop using overrides
             LOGGER.warn("You are using unofficial {} mod", MOD_ID);
-            LOGGER.warn("Using client config overrides! Editing the {} file will have no effect", clientConfigFile);
+            LOGGER.warn("Using client config overrides! Editing the {} file will have no effect",
+                    clientPaths.getClientConfigFile());
             LOGGER.warn("Remove the {} file from inside the jar or remove and download fresh {} mod jar from modrinth/curseforge", clientConfigFileOverrideResource, MOD_ID);
             clientConfig = ConfigTools.load(clientConfigOverride, Jsons.ClientConfigFields.class);
         }
 
         // load server config
-        serverConfig = ConfigTools.load(serverConfigFile, Jsons.ServerConfigFields.class);
+        serverConfig = ConfigTools.load(serverPaths.getConfigFile(), Jsons.ServerConfigFields.class);
 
         if (serverConfig != null) {
             int previousServerConfigVersion = serverConfig.DO_NOT_CHANGE_IT;
@@ -160,7 +166,7 @@ public class Preload {
             }
 
             // Save changes
-            ConfigTools.save(serverConfigFile, serverConfig);
+            ConfigTools.save(serverPaths.getConfigFile(), serverConfig);
         }
 
         if (clientConfig != null) {
@@ -181,13 +187,15 @@ public class Preload {
             }
 
             // Save changes
-            ConfigTools.save(clientConfigFile, clientConfig);
+            ConfigTools.save(clientPaths.getClientConfigFile(), clientConfig);
         }
 
         try {
-            Files.createDirectories(privateDir);
-            if (Files.exists(privateDir) && System.getProperty("os.name").toLowerCase().contains("win")) {
-                Files.setAttribute(privateDir, "dos:hidden", true);
+            for (Path privateDir : List.of(serverPaths.getPrivateDir(), clientPaths.getPrivateDir())) {
+                Files.createDirectories(privateDir);
+                if (Files.exists(privateDir) && System.getProperty("os.name").toLowerCase().contains("win")) {
+                    Files.setAttribute(privateDir, "dos:hidden", true);
+                }
             }
         } catch (IOException e) {
             LOGGER.error("Failed to create private directory", e);

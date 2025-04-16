@@ -9,21 +9,22 @@ import java.nio.file.Path;
 import pl.skidam.automodpack.client.ui.versioned.VersionedMatrices;
 import pl.skidam.automodpack.client.ui.versioned.VersionedScreen;
 import pl.skidam.automodpack.client.ui.versioned.VersionedText;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_loader_core.client.Changelogs;
 import pl.skidam.automodpack_loader_core.utils.UpdateType;
 import pl.skidam.automodpack_loader_core.screen.ScreenManager;
 
 public class RestartScreen extends VersionedScreen {
-    private final Path modpackDir;
+    private final ModpackPaths modpackPaths;
     private final UpdateType updateType;
     private final Changelogs changelogs;
     private static ButtonWidget cancelButton;
     private static ButtonWidget restartButton;
     private static ButtonWidget changelogsButton;
 
-    public RestartScreen(Path modpackDir, UpdateType updateType, Changelogs changelogs) {
+    public RestartScreen(ModpackPaths modpackPaths, UpdateType updateType, Changelogs changelogs) {
         super(VersionedText.literal("RestartScreen"));
-        this.modpackDir = modpackDir;
+        this.modpackPaths = modpackPaths;
         this.updateType = updateType;
         this.changelogs = changelogs;
 
@@ -58,7 +59,7 @@ public class RestartScreen extends VersionedScreen {
         });
 
         changelogsButton = buttonWidget(this.width / 2 - 75, this.height / 2 + 75, 150, 20, VersionedText.translatable("automodpack.changelog.view"), button -> {
-            new ScreenManager().changelog(this, modpackDir, changelogs);
+            new ScreenManager().changelog(this, modpackPaths, changelogs);
         });
     }
 

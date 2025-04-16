@@ -9,6 +9,7 @@ import pl.skidam.automodpack.mixin.core.ClientLoginNetworkHandlerAccessor;
 import pl.skidam.automodpack.networking.content.DataPacket;
 import pl.skidam.automodpack_core.auth.Secrets;
 import pl.skidam.automodpack_core.auth.SecretsStore;
+import pl.skidam.automodpack_core.paths.ModpackPaths;
 import pl.skidam.automodpack_loader_core.ReLauncher;
 import pl.skidam.automodpack_loader_core.client.ModpackUpdater;
 import pl.skidam.automodpack_loader_core.client.ModpackUtils;
@@ -58,21 +59,21 @@ public class DataC2SPacket {
 
             Boolean needsDisconnecting = null;
 
-            Path modpackDir = ModpackUtils.getModpackPath(address, modpackName);
+            ModpackPaths modpackPaths = ModpackUtils.getModpackPaths(address, modpackName);
             var optionalServerModpackContent = ModpackUtils.requestServerModpackContent(address, secret);
 
             if (optionalServerModpackContent.isPresent()) {
-                boolean update = ModpackUtils.isUpdate(optionalServerModpackContent.get(), modpackDir);
+                boolean update = ModpackUtils.isUpdate(optionalServerModpackContent.get(), modpackPaths);
 
                 if (update) {
                     disconnectImmediately(handler);
-                    new ModpackUpdater().prepareUpdate(optionalServerModpackContent.get(), address, secret, modpackDir);
+                    new ModpackUpdater().prepareUpdate(optionalServerModpackContent.get(), address, secret, modpackPaths);
                     needsDisconnecting = true;
                 } else {
-                    boolean selectedModpackChanged = ModpackUtils.selectModpack(modpackDir, address, Set.of());
+                    boolean selectedModpackChanged = ModpackUtils.selectModpack(modpackPaths, address, Set.of());
 
                     // save latest modpack content
-                    var modpackContentFile = modpackDir.resolve(hostModpackContentFile.getFileName());
+                    var modpackContentFile = modpackPaths.getModpackContentFile();
                     if (Files.exists(modpackContentFile)) {
                         Files.writeString(modpackContentFile, GSON.toJson(optionalServerModpackContent.get()));
                     }
@@ -80,7 +81,7 @@ public class DataC2SPacket {
                     if (selectedModpackChanged) {
                         SecretsStore.saveClientSecret(clientConfig.selectedModpack, secret);
                         disconnectImmediately(handler);
-                        new ReLauncher(modpackDir, UpdateType.SELECT, null).restart(false);
+                        new ReLauncher(modpackPaths, UpdateType.SELECT, null).restart(false);
                         needsDisconnecting = true;
                     } else {
                         needsDisconnecting = false;
